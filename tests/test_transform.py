@@ -34,10 +34,62 @@ def test_normalizar_codigo():
 
 
 def test_converter_preco():
-    assert converter_preco("1.234,56") == 1234.56
-    assert converter_preco("12.5") == 12.5
-    assert converter_preco("12") == 12.0
+    assert converter_preco("1.234,56") == 123456
+    assert converter_preco("12.5") == 1250
+    assert converter_preco("12") == 1200
     assert pd.isna(converter_preco("abc"))
+
+
+@pytest.mark.parametrize(
+    ("valor", "esperado"),
+    [("2,345", 235), ("2,355", 236)],
+)
+def test_converter_preco_arredonda_half_up(valor, esperado):
+    assert converter_preco(valor) == esperado
+
+
+@pytest.mark.parametrize("valor", ["", "-", "N/A", "NA", "NULL", "NAN"])
+def test_converter_preco_preserva_nulos(valor):
+    assert pd.isna(converter_preco(valor))
+
+
+def test_converter_preco_soma_fracoes_sem_float():
+    assert converter_preco("0,1") + converter_preco("0,2") == 30
+
+
+def test_converter_preco_negativo_zero_e_valor_grande():
+    assert converter_preco("-1,23") == -123
+    assert converter_preco("0") == 0
+    assert converter_preco("488.559,28") == 48855928
+
+
+def test_limpar_rejeita_preco_ausente_nao_numerico_negativo_e_zero():
+    df_largo = pd.DataFrame(
+        [
+            {
+                "classificacao": "Material",
+                "codigo": str(indice),
+                "descricao": "Insumo de teste",
+                "unidade": "M",
+                "origem_preco": "C",
+                "BA": preco,
+                "linha_origem": indice,
+            }
+            for indice, preco in enumerate([None, "abc", "-0,01", "0"], start=1)
+        ]
+    )
+
+    df_valido, df_rejeitado = limpar(
+        df_largo, "BA", "sem_desoneracao", "2026-02", "teste.xlsx"
+    )
+
+    assert df_valido.empty
+    assert df_rejeitado["motivo_rejeicao"].tolist() == [
+        "preço ausente para a UF",
+        "preço não numérico",
+        "preço negativo ou zero",
+        "preço negativo ou zero",
+    ]
 
 
 def test_normalizar_unidade():
@@ -87,6 +139,8 @@ def test_rejeicao_por_duplicado(xlsx_fake):
 def test_filtro_por_uf(xlsx_fake):
     df_largo = extrair(xlsx_fake, "ISD")
     df_valido, df_rejeitado = limpar(df_largo, "BA", "sem_desoneracao", "2026-02", "SINAPI_Referência_2026_02.xlsx")
+    assert str(df_valido["preco_centavos"].dtype) == "Int64"
+    assert df_valido.loc[df_valido["codigo"] == "123", "preco_centavos"].iloc[0] == 123456
     assert set(df_valido["uf"]).issubset({"BA"})
     assert set(df_rejeitado["uf"]).issubset({"BA"})
 

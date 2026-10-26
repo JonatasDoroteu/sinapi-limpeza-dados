@@ -24,6 +24,17 @@ def test_cli_gera_csvs_e_totais(xlsx_fake, tmp_path):
     csv_rejeitados = pd.read_csv(saida / "rejeitados.csv", sep=';')
     assert not csv_validos.empty
     assert len(csv_validos) + len(csv_rejeitados) > 0
+    csv_validos_texto = pd.read_csv(
+        saida / "insumos_limpos.csv", sep=";", encoding="utf-8-sig", dtype=str
+    )
+    assert "preco_centavos" not in csv_validos_texto.columns
+    assert csv_validos_texto.loc[csv_validos_texto["codigo"] == "12345", "preco"].iloc[0] == "12,50"
+    csv_rejeitados_texto = pd.read_csv(
+        saida / "rejeitados.csv", sep=";", encoding="utf-8-sig", dtype=str
+    )
+    assert csv_rejeitados_texto.loc[
+        csv_rejeitados_texto["codigo"] == "789", "preco_original"
+    ].iloc[0] == "abc"
 
 
 def test_cli_uf_inexistente_informa_ufs_disponiveis(xlsx_fake, tmp_path, capsys):
