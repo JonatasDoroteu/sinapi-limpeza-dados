@@ -15,6 +15,22 @@ def _coluna_texto(df: pd.DataFrame, coluna: str) -> pd.Series:
     return df[coluna].reset_index(drop=True).astype("string")
 
 
+def _coluna_preco_decimal(df: pd.DataFrame) -> pd.Series:
+    if "preco_centavos" not in df.columns:
+        return pd.Series(pd.NA, index=range(len(df)), dtype="string")
+    centavos = df["preco_centavos"].reset_index(drop=True).astype("Int64")
+
+    def formatar(valor: int | pd._libs.missing.NAType) -> str | None:
+        if pd.isna(valor):
+            return None
+        centavos_inteiros = int(valor)
+        sinal = "-" if centavos_inteiros < 0 else ""
+        reais, fracao = divmod(abs(centavos_inteiros), 100)
+        return f"{sinal}{reais}.{fracao:02d}"
+
+    return centavos.map(formatar).astype("string")
+
+
 def _criar_tabelas(conexao: duckdb.DuckDBPyConnection) -> None:
     conexao.execute(
         """
@@ -115,9 +131,7 @@ def carregar(
             "classificacao": _coluna_texto(df_valido, "classificacao"),
             "origem_preco": _coluna_texto(df_valido, "origem_preco"),
             "arquivo_origem": _coluna_texto(df_valido, "arquivo_origem"),
-            "preco": pd.to_numeric(
-                _coluna_texto(df_valido, "preco"), errors="raise"
-            ).round(2),
+            "preco_decimal": _coluna_preco_decimal(df_valido),
             "ordem": np.arange(len(df_valido)),
         }
     )
@@ -231,7 +245,7 @@ def carregar(
             INSERT INTO fato_preco
             SELECT
                 codigo, uf, ?, ?,
-                CAST(round(preco, 2) AS DECIMAL(12, 2)),
+                CAST(preco_decimal AS DECIMAL(12, 2)),
                 origem_preco, arquivo_origem
             FROM sinapi_validos
             """,

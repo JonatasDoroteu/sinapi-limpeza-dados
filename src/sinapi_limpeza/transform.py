@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any
 
 import pandas as pd
@@ -46,18 +47,24 @@ def normalizar_codigo(valor: Any) -> str | pd._libs.missing.NAType:
     return codigo
 
 
-def converter_preco(valor: Any) -> float | pd._libs.missing.NAType:
-    """Converte preços em formato brasileiro ou decimal simples para float arredondado."""
+def converter_preco(valor: Any) -> int | pd._libs.missing.NAType:
+    """Converte o preço para centavos inteiros com arredondamento comercial."""
     texto = normalizar_nulos(valor)
     if pd.isna(texto):
         return pd.NA
     texto = str(texto).strip()
     if "," in texto:
         texto = texto.replace(".", "").replace(",", ".")
-        return round(float(texto), 2)
-    if re.fullmatch(r"\d+(\.\d+)?", texto):
-        return round(float(texto), 2)
-    return pd.NA
+    elif not re.fullmatch(r"[+-]?\d+(\.\d+)?", texto):
+        return pd.NA
+    try:
+        preco = Decimal(texto)
+        if not preco.is_finite():
+            return pd.NA
+        preco_quantizado = preco.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    except InvalidOperation:
+        return pd.NA
+    return int(preco_quantizado * 100)
 
 
 def normalizar_unidade(valor: Any) -> str | pd._libs.missing.NAType:
@@ -157,8 +164,23 @@ def limpar(df_largo: pd.DataFrame, uf: str, regime: str, referencia: str | None,
 
     df_longo = pd.DataFrame(linhas)
     if df_longo.empty:
+        df_valido = pd.DataFrame(
+            columns=[
+                "codigo",
+                "descricao",
+                "unidade",
+                "origem_preco",
+                "classificacao",
+                "uf",
+                "preco_centavos",
+                "regime",
+                "referencia",
+                "arquivo_origem",
+            ]
+        )
+        df_valido["preco_centavos"] = pd.Series(dtype="Int64")
         return (
-            pd.DataFrame(columns=["codigo", "descricao", "unidade", "origem_preco", "classificacao", "uf", "preco", "regime", "referencia", "arquivo_origem"]),
+            df_valido,
             pd.DataFrame(columns=["linha_origem", "uf", "codigo", "descricao", "unidade", "origem_preco", "preco_original", "motivo_rejeicao"]),
         )
 
@@ -218,7 +240,7 @@ def limpar(df_largo: pd.DataFrame, uf: str, regime: str, referencia: str | None,
                 "origem_preco": origem,
                 "classificacao": linha.get("classificacao"),
                 "uf": linha.get("uf"),
-                "preco": round(float(preco), 2),
+                "preco_centavos": preco,
                 "regime": regime,
                 "referencia": referencia,
                 "arquivo_origem": arquivo_origem,
@@ -227,7 +249,10 @@ def limpar(df_largo: pd.DataFrame, uf: str, regime: str, referencia: str | None,
 
     df_valido = pd.DataFrame(
         validados,
-        columns=["codigo", "descricao", "unidade", "origem_preco", "classificacao", "uf", "preco", "regime", "referencia", "arquivo_origem"],
+        columns=["codigo", "descricao", "unidade", "origem_preco", "classificacao", "uf", "preco_centavos", "regime", "referencia", "arquivo_origem"],
+    )
+    df_valido["preco_centavos"] = pd.array(
+        df_valido["preco_centavos"], dtype="Int64"
     )
     df_rejeitado = pd.DataFrame(
         rejeitados,

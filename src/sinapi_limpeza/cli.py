@@ -13,6 +13,15 @@ from sinapi_limpeza.load import carregar
 from sinapi_limpeza.transform import limpar, referencia_do_arquivo, regime_da_aba
 
 
+def _formatar_preco_csv(preco_centavos: object) -> str | None:
+    if pd.isna(preco_centavos):
+        return None
+    centavos = int(preco_centavos)
+    sinal = "-" if centavos < 0 else ""
+    reais, fracao = divmod(abs(centavos), 100)
+    return f"{sinal}{reais},{fracao:02d}"
+
+
 def _imprimir_inspecao(caminho: str, aba: str) -> None:
     abas = listar_abas(caminho)
     print(f"Abas: {', '.join(abas)}")
@@ -53,7 +62,13 @@ def main(argv: list[str] | None = None) -> int:
 
         caminho_limpos = pasta_saida / "insumos_limpos.csv"
         caminho_rejeitados = pasta_saida / "rejeitados.csv"
-        df_valido.to_csv(caminho_limpos, sep=';', index=False, encoding='utf-8-sig', decimal=',')
+        df_limpos_csv = df_valido.drop(columns=["preco_centavos"]).copy()
+        indice_preco = df_valido.columns.get_loc("preco_centavos")
+        precos_csv = df_valido["preco_centavos"].map(_formatar_preco_csv).astype(
+            "string"
+        )
+        df_limpos_csv.insert(indice_preco, "preco", precos_csv)
+        df_limpos_csv.to_csv(caminho_limpos, sep=';', index=False, encoding='utf-8-sig', decimal=',')
         df_rejeitado.to_csv(caminho_rejeitados, sep=';', index=False, encoding='utf-8-sig', decimal=',')
 
         if args.duckdb:
