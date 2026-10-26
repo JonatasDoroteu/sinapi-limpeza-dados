@@ -17,7 +17,7 @@ Arquivo `SINAPI_Referência_2026_09.xlsx` (13 MB), aba `ISD`, UF `BA`:
 | Rejeitadas | 362 (7,4%) |
 | Motivo das rejeições | preço ausente para a UF (362) |
 | Origem de preço fora de C/CR/AS | 0 |
-| Testes automatizados | 27 testes em Pytest |
+| Testes automatizados | 39 testes em Pytest |
 
 Saída do terminal:
 
@@ -170,7 +170,7 @@ Abas suportadas: `ISD` (sem desoneração), `ICD` (com desoneração) e `ISE` (s
 | Texto | Remove espaços nas pontas e duplicados; vazio vira nulo |
 | Nulos | `""`, `-`, `N/A`, `NA`, `NULL`, `NAN` (qualquer caixa) viram nulo |
 | Código | Só dígitos; remove espaços e o sufixo `.0` que o Excel deixa |
-| Preço | Com vírgula: formato brasileiro (`1.234,56` vira `1234.56`). Sem vírgula: decimal com ponto (`12.5` continua `12.5`, nunca `125`). Resultado em float arredondado a 2 casas |
+| Preço | Com vírgula: formato brasileiro (`1.234,56` vira `1234.56`). Sem vírgula: decimal com ponto (`12.5` continua `12.5`, nunca `125`). O parse usa `Decimal` com `ROUND_HALF_UP`; no DataFrame, o preço é armazenado como centavos inteiros (`Int64`) e no CSV sai com duas casas decimais |
 | Unidade | Dicionário pequeno e explícito (`M2`/`m²` → `m²`, `UND`/`un` → `un` etc.); unidade desconhecida é mantida em maiúsculas |
 | Origem do preço | Maiúsculas e sem espaços (C, CR, AS); valores fora disso não são rejeitados, apenas contados no resumo |
 
@@ -201,21 +201,16 @@ Separador `;`, encoding `utf-8-sig`, decimal `,`.
 | Carga DuckDB executada para BA em 2026-06 a 2026-09; contagens em `fato_preco` e `fato_rejeicao` batem com as saídas, e recarga de setembro manteve 4.516 e 362 linhas | Execuções em versões Python ou DuckDB diferentes das usadas localmente |
 | Consultas SQL executadas sobre dados reais: médias, variações, mudanças de cobertura e ranking por classificação | Resultados em outros meses, abas ou UFs |
 | Distribuição de rejeições por UF para `--uf TODAS` (2026-09) e comparação de códigos da BA entre junho e setembro documentadas em [`docs/achados.md`](docs/achados.md) | Causas das diferenças de cobertura entre UFs e da recuperação de preços |
-| 27 testes passaram localmente, incluindo fixture sintética `xlsx_fake` e UF inexistente | Workflow do GitHub Actions não executado; não há repositório remoto |
+| 39 testes passaram localmente e no GitHub Actions (badge no topo), incluindo fixture sintética `xlsx_fake` e UF inexistente | |
 | Verificação de preço em formato texto sem vírgula na referência 2026-09, BA | Verificação desse formato em outras referências, abas ou UFs |
-|  | Aba ISE em arquivo real |
+| Aba ISE em arquivo real |
 
 ## Limitações conhecidas
 
 - Só insumos; composições não são suportadas.
-- Preço em float arredondado a 2 casas; para dinheiro, o ideal seria `Decimal` ou centavos inteiros.
 - Detecção de layout por heurística, validada em quatro arquivos reais consecutivos (2026-06 a 2026-09); outros meses não foram testados.
 - A estrutura da planilha foi levantada de fontes públicas, não do manual oficial da Caixa.
 - Uma UF que não existe como coluna no arquivo gera erro com a lista das UFs disponíveis; use uma UF presente ou `TODAS`.
-
-## Próximos passos (planejados, ainda não implementados)
-
-- Trocar float por `Decimal` ou centavos.
 
 ## Autor
 
